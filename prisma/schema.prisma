@@ -1,0 +1,222 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  phone           String?
+  password        String
+  ref_id          String   @unique
+  ref_by          String?
+  status          String   @default("active")
+  balance         Float    @default(0)
+  deposit_balance Float    @default(0)
+  payment_method  String?
+  method_number   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  deposits        Deposit[]
+  withdrawals     Withdraw[]
+  purchases       Purchase[]
+  ledgers         Ledger[]
+  referredUsers   User[]   @relation("UserReferrals")
+  referredBy      User?    @relation("UserReferrals", fields: [ref_by], references: [ref_id])
+  bonusCodesUsed  BonusCodeUsage[]
+}
+
+model Package {
+  id          String   @id @default(cuid())
+  title       String
+  image       String?
+  description String?
+  price       Float
+  daily_income Float
+  validity    Int // in days
+  total_income Float // calculated as daily_income * validity
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  purchases   Purchase[]
+}
+
+model PaymentMethod {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  image     String?
+  address   String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  deposits   Deposit[]
+  withdrawals Withdraw[]
+}
+
+model Deposit {
+  id              String   @id @default(cuid())
+  user_id         String
+  amount          Float
+  charge          Float    @default(0)
+  final_amount    Float
+  payment_method  String
+  transaction_id  String?
+  method_number   String?
+  wallet_number   String?
+  status          String   @default("pending")
+  remark          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [user_id], references: [id])
+  paymentMethod   PaymentMethod? @relation(fields: [payment_method], references: [name])
+}
+
+model Withdraw {
+  id              String   @id @default(cuid())
+  user_id         String
+  amount          Float
+  charge          Float    @default(0)
+  final_amount    Float
+  method_name     String
+  method_number   String?
+  wallet_number   String?
+  status          String   @default("pending")
+  remark          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User     @relation(fields: [user_id], references: [id])
+  paymentMethod   PaymentMethod? @relation(fields: [method_name], references: [name])
+}
+
+model Purchase {
+  id            String   @id @default(cuid())
+  user_id       String
+  package_id    String
+  price         Float
+  daily_income  Float
+  validity      Int // in days
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  user          User     @relation(fields: [user_id], references: [id])
+  package       Package  @relation(fields: [package_id], references: [id])
+}
+
+model Task {
+  id            String   @id @default(cuid())
+  name          String
+  image         String?
+  task_income   Float
+  duration      Int // in minutes or hours
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  userTasks     UserTask[]
+}
+
+model UserTask {
+  id            String   @id @default(cuid())
+  user_id       String
+  task_id       String
+  status        String   @default("pending") // pending, completed, claimed
+  completed_at  DateTime?
+  claimed_at    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  task          Task     @relation(fields: [task_id], references: [id])
+}
+
+model Settings {
+  id                String   @id @default(cuid())
+  app_name          String   @default("Investment App")
+  logo              String?
+  phone             String?
+  currency          String   @default("USD")
+  deposit_bonus     Float    @default(0)
+  allow_deposit_bonus Boolean @default(false)
+  withdraw_enabled  Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ReferralCommission {
+  id        String   @id @default(cuid())
+  level     Int
+  name      String
+  commission Float // percentage
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BonusCode {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  income_amount Float
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  usages        BonusCodeUsage[]
+}
+
+model BonusCodeUsage {
+  id                String   @id @default(cuid())
+  bonus_code_id     String
+  user_id           String
+  status            String   @default("success")
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  bonusCode         BonusCode @relation(fields: [bonus_code_id], references: [id])
+  user              User      @relation(fields: [user_id], references: [id])
+}
+
+model Ledger {
+  id            String   @id @default(cuid())
+  user_id       String
+  type          String // deposit, withdraw, income, bonus, etc.
+  amount        Float
+  description   String?
+  balance_after Float
+  createdAt     DateTime @default(now())
+  
+  // Relations
+  user          User     @relation(fields: [user_id], references: [id])
+}
